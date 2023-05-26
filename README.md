@@ -3,8 +3,6 @@ ublox for Rust
 
 [![MIT licensed][mit-badge]][mit-url]
 
-[docs-badge]: https://docs.rs/ublox/badge.svg
-[docs-url]: https://docs.rs/ublox
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/andrei-ng/ublox-rs/blob/main/LICENSE
 
