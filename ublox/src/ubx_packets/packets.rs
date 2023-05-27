@@ -237,6 +237,7 @@ struct NavPvt {
 #[ubx(from, rest_reserved)]
 bitflags! {
     /// Fix status flags for `NavPvt`
+    #[derive(Debug)]
     pub struct NavPvtFlags: u8 {
         /// position and velocity valid and within DOP and ACC Masks
         const GPS_FIX_OK = 1;
@@ -253,6 +254,7 @@ bitflags! {
 #[ubx(from, rest_reserved)]
 bitflags! {
     /// Additional flags for `NavPvt`
+    #[derive(Debug)]
     pub struct NavPvtFlags2: u8 {
         /// 1 = information about UTC Date and Time of Day validity confirmation
         /// is available. This flag is only supported in Protocol Versions
@@ -410,6 +412,7 @@ pub enum GpsFix {
 #[ubx(from, rest_reserved)]
 bitflags! {
     /// Navigation Status Flags
+    #[derive(Debug)]
     pub struct NavStatusFlags: u8 {
         /// position and velocity valid and within DOP and ACC Masks
         const GPS_FIX_OK = 1;
@@ -754,7 +757,7 @@ struct CfgOdo {
 #[ubx_extend_bitflags]
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct OdoCogFilterFlags: u8 {
         /// Odometer enabled flag
         const USE_ODO = 0x01;
@@ -1061,7 +1064,7 @@ struct CfgInf {
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
     /// `CfgInfMask` parameters bitmask
-    #[derive(Default)]
+    #[derive(Default, Debug, Clone, Copy)]
     pub struct CfgInfMask: u8 {
         const ERROR = 0x1;
         const WARNING = 0x2;
@@ -1290,7 +1293,7 @@ struct CfgAnt {
 #[ubx_extend_bitflags]
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct AntFlags: u16 {
         /// Enable supply voltage control signal
         const SVCS = 0x01;
@@ -1426,7 +1429,7 @@ impl Default for CfgTmode2TimeXferModes {
 #[ubx_extend_bitflags]
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct CfgTmode2Flags :u16 {
         /// Position given in LAT/LON/ALT
         /// default being WGS84 ECEF
@@ -1515,6 +1518,7 @@ struct NavTimeLs {
 #[ubx(from, rest_reserved)]
 bitflags! {
     /// Fix status flags for `NavTimeLsFlags`
+    #[derive(Debug)]
     pub struct NavTimeLsFlags: u8 {
         /// 1 = Valid current number of leap seconds value.
         const VALID_CURR_LS = 1;
@@ -1583,7 +1587,7 @@ struct CfgTmode3 {
 #[ubx_extend_bitflags]
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct CfgTmode3RcvrMode: u8 {
         const DISABLED = 0x01;
         const SURVEY_IN = 0x02;
@@ -1595,7 +1599,7 @@ bitflags! {
 #[ubx_extend_bitflags]
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct CfgTp5Flags: u32 {
         // Enables time pulse
         const ACTIVE = 0x01;
@@ -1646,7 +1650,7 @@ bitflags! {
 #[ubx_extend_bitflags]
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct CfgTmode3Flags: u8 {
         /// Set if position is given in Lat/Lon/Alt,
         /// ECEF coordinates being used otherwise
@@ -2020,7 +2024,7 @@ bitflags! {
     /// Each bit of this mask is used for a protocol.
     /// Through that, multiple protocols can be defined on a single port
     /// Used in `CfgPrtSpi` and `CfgPrtI2c`
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct InProtoMask: u16 {
         const UBLOX = 1;
         const NMEA = 2;
@@ -2038,7 +2042,7 @@ bitflags! {
     /// Each bit of this mask is used for a protocol.
     /// Through that, multiple protocols can be defined on a single port
     /// Used in `CfgPrtSpi` and `CfgPrtI2c`
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct OutProtoMask: u16 {
         const UBLOX = 1;
         const NMEA = 2;
@@ -2101,6 +2105,7 @@ struct NavTimeUTC {
 #[ubx(from, rest_reserved)]
 bitflags! {
     /// Validity Flags of `NavTimeUTC`
+    #[derive(Default, Debug)]
     pub struct NavTimeUtcFlags: u8 {
         /// Valid Time of Week
         const VALID_TOW = 1;
@@ -2266,7 +2271,7 @@ struct CfgNav5 {
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
     /// `CfgNav5` parameters bitmask
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct CfgNav5Params: u16 {
         /// Apply dynamic model settings
         const DYN = 1;
@@ -2514,7 +2519,7 @@ struct CfgNavX5 {
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
     /// `CfgNavX51` parameters bitmask
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct CfgNavX5Params1: u16 {
         /// apply min/max SVs settings
         const MIN_MAX = 0x4;
@@ -2537,7 +2542,7 @@ bitflags! {
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
     /// `CfgNavX5Params2` parameters bitmask
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct CfgNavX5Params2: u32 {
         ///  apply ADR/UDR sensor fusion on/off setting
         const USE_ADR = 0x40;
@@ -2922,7 +2927,7 @@ struct RxmRawx {
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
     /// `CfgNavX5Params2` parameters bitmask
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct RecStatFlags: u8 {
         /// Leap seconds have been determined
         const LEAP_SEC = 0x1;
@@ -2994,7 +2999,7 @@ struct MonGnss {
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
     /// Selected / available Constellation Mask
-    #[derive(Default)]
+    #[derive(Default, Debug)]
     pub struct MonGnssConstellMask: u8 {
         /// GPS constellation
         const GPS = 0x01;
@@ -3249,6 +3254,7 @@ struct EsfIns {
 #[ubx_extend_bitflags]
 #[ubx(from, rest_reserved)]
 bitflags! {
+    #[derive(Debug)]
     pub struct EsfInsBitFlags: u32 {
         const VERSION = 1;
         const X_ANG_RATE_VALID = 0x100;
@@ -3262,6 +3268,7 @@ bitflags! {
 
 #[ubx_packet_recv]
 #[ubx(class = 0x28, id = 0x00, fixed_payload_len = 72)]
+#[derive(Debug)]
 struct HnrPvt {
     i_tow: u32,
     year: u16,
@@ -3340,6 +3347,7 @@ struct NavClock {
 #[ubx_extend_bitflags]
 #[ubx(from, rest_reserved)]
 bitflags! {
+    #[derive(Debug)]
     /// Fix status flags for `HnrPvt`
     pub struct HnrPvtFlags: u8 {
         /// position and velocity valid and within DOP and ACC Masks
@@ -3356,6 +3364,7 @@ bitflags! {
 #[ubx_extend_bitflags]
 #[ubx(from, rest_reserved)]
 bitflags! {
+    #[derive(Debug)]
     pub struct HnrPvtValidFlags: u8 {
         const VALID_DATE = 0x01;
         const VALID_TIME = 0x02;
@@ -3500,6 +3509,7 @@ pub struct RxmRawxInfo {
 #[ubx_extend_bitflags]
 #[ubx(from, rest_reserved)]
 bitflags! {
+    #[derive(Debug)]
     pub struct StdevFlags: u8 {
         const STD_1 = 0x01;
         const STD_2 = 0x02;
@@ -3511,6 +3521,7 @@ bitflags! {
 #[ubx_extend_bitflags]
 #[ubx(from, rest_reserved)]
 bitflags! {
+    #[derive(Debug)]
     pub struct TrkStatFlags: u8 {
         const PR_VALID = 0x01;
         const CP_VALID = 0x02;
