@@ -1,5 +1,9 @@
 use chrono::prelude::*;
-use clap::{App, Arg};
+use clap::{value_parser, Arg, Command};
+use serialport::{
+    DataBits as SerialDataBits, FlowControl as SerialFlowControl, Parity as SerialParity,
+    StopBits as SerialStopBits,
+};
 use std::convert::TryInto;
 use std::time::Duration;
 use ublox::*;
@@ -78,42 +82,82 @@ impl Device {
 }
 
 fn main() {
-    let matches = App::new("ublox CLI example program")
+    let matches = Command::new("ublox CLI example program")
+        .author(clap::crate_authors!())
         .about("Demonstrates usage of the Rust ublox API")
+        .arg_required_else_help(true)
         .arg(
-            Arg::with_name("port")
-                .short("p")
+            Arg::new("port")
+                .value_name("port")
+                .short('p')
                 .long("port")
-                .takes_value(true)
                 .required(true)
                 .help("Serial port to open"),
         )
         .arg(
-            Arg::with_name("baud")
-                .short("s")
+            Arg::new("baud")
+                .value_name("baud")
+                .short('s')
                 .long("baud")
-                .takes_value(true)
+                .required(false)
+                .value_parser(value_parser!(u32))
                 .help("Baud rate of the port"),
+        )
+        .arg(
+            Arg::new("stop-bits")
+                .long("stop-bits")
+                .help("Number of stop bits to use")
+                .required(false)
+                .value_parser(["1", "2"])
+                .default_value("1"),
+        )
+        .arg(
+            Arg::new("data-bits")
+                .long("data-bits")
+                .help("Number of data bits to use")
+                .required(false)
+                .value_parser(["5", "6", "7", "8"])
+                .default_value("8"),
         )
         .get_matches();
 
-    let port = matches.value_of("port").unwrap();
-    let baud: u32 = matches
-        .value_of("baud")
-        .unwrap_or("9600")
-        .parse()
-        .expect("Could not parse baudrate as an integer");
-
-    let s = serialport::SerialPortSettings {
-        baud_rate: baud,
-        data_bits: serialport::DataBits::Eight,
-        flow_control: serialport::FlowControl::None,
-        parity: serialport::Parity::None,
-        stop_bits: serialport::StopBits::One,
-        timeout: Duration::from_millis(1),
+    let port = matches.get_one::<String>("port").unwrap();
+    let baud = matches.get_one::<u32>("baud").cloned().unwrap_or(9600);
+    let stop_bits = match matches.get_one::<String>("stop-bits").map(|s| s.as_str()) {
+        Some("2") => SerialStopBits::Two,
+        _ => SerialStopBits::One,
     };
-    let port = serialport::open_with_settings(port, &s).unwrap();
+    let data_bits = match matches.get_one::<String>("data-bits").map(|s| s.as_str()) {
+        Some("5") => SerialDataBits::Five,
+        Some("6") => SerialDataBits::Six,
+        Some("7") => SerialDataBits::Seven,
+        _ => SerialDataBits::Eight,
+    };
+
+    let builder = serialport::new(port, baud)
+        .stop_bits(stop_bits)
+        .data_bits(data_bits)
+        .timeout(Duration::from_millis(1))
+        .parity(SerialParity::None)
+        .flow_control(SerialFlowControl::None);
+
+    println!("{:?}", &builder);
+    let port = builder.open().unwrap_or_else(|e| {
+        eprintln!("Failed to open \"{}\". Error: {}", port, e);
+        ::std::process::exit(1);
+    });
     let mut device = Device::new(port);
+
+    // let s = serialport::SerialPortSettings {
+    //     baud_rate: baud,
+    //     data_bits: serialport::DataBits::Eight,
+    //     flow_control: serialport::FlowControl::None,
+    //     parity: serialport::Parity::None,
+    //     stop_bits: serialport::StopBits::One,
+    //     timeout: Duration::from_millis(1),
+    // };
+    // let port = serialport::open_with_settings(port, &s).unwrap();
+    // let mut device = Device::new(port);
 
     // Configure the device to talk UBX
     device
