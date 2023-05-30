@@ -1,0 +1,13 @@
+[package]
+authors = ["Andrei Gherghescu <gandrein@pm.me>"]
+edition = "2018"
+name = "example-send-receive-multiple-threads"
+publish = false
+version = "0.1.0"
+
+[dependencies]
+chrono = "0.4.15"
+clap = {version = "4.2.7", features = ["cargo"]}
+serde_json = "1.0.85"
+serialport = "4.2.0"
+ublox = {path = "../../ublox"}

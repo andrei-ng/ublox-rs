@@ -1,10 +1,10 @@
-ublox for Rust
+uBlox for Rust
 ==============
 
-[![MIT licensed][mit-badge]][mit-url]
+[![MIT licensed][MIT-badge]][MIT-URL]
 
-[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
-[mit-url]: https://github.com/andrei-ng/ublox-rs/blob/main/LICENSE
+[MIT-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[MIT-URL]: https://github.com/andrei-ng/ublox-rs/blob/main/LICENSE
 
 ==============
 
@@ -12,9 +12,9 @@ This project is a fork of [lkolbly/ublox](https://github.com/lkolbly/ublox)
 
 ==============
 
-This project aims to build a pure-rust I/O library for ublox GPS devices, specifically using the UBX protocol.
+This project aims to build a pure-rust I/O library for uBlox GPS devices, specifically using the UBX protocol.
 
-An example of using this library to talk to a device can be seen in the `ublox_cli` subfolder of this project.
+An example of using this library to talk to a device can be seen in the `ublox_cli` sub-folder of this project.
 
 Constructing Packets
 ====================
