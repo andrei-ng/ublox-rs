@@ -2,9 +2,10 @@ uBlox for Rust
 ==============
 
 [![MIT licensed][MIT-badge]][MIT-URL]
+![build-ci](https://img.shields.io/github/actions/workflow/status/andrei-ng/ublox-rs/build.yaml?branch=main)
 
 [MIT-badge]: https://img.shields.io/badge/license-MIT-blue.svg
-[MIT-URL]: https://github.com/andrei-ng/ublox-rs/blob/main/LICENSE
+[MIT-URL]: https://github.com/andrei-ng/ublox-rs/blob/main/LICENSE.md
 
 ==============
 
