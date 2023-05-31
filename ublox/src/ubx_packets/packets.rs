@@ -2271,7 +2271,7 @@ struct CfgNav5 {
 #[ubx(from, into_raw, rest_reserved)]
 bitflags! {
     /// `CfgNav5` parameters bitmask
-    #[derive(Default, Debug)]
+    #[derive(Default, Debug, PartialEq, Eq)]
     pub struct CfgNav5Params: u16 {
         /// Apply dynamic model settings
         const DYN = 1;
@@ -3034,7 +3034,7 @@ impl<'a> MonVerExtensionIter<'a> {
     }
 
     fn is_valid(payload: &[u8]) -> bool {
-        payload.len() % 30 == 0 && payload.chunks(30).any(|c| !is_cstr_valid(c))
+        payload.len() % 30 == 0 && payload.chunks(30).all(|c| is_cstr_valid(c))
     }
 }
 
@@ -3607,3 +3607,60 @@ define_recv_packets!(
         TimSvin,
     }
 );
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn mon_ver_rom_interpret() {
+        let payload: [u8; 160] = [
+            82, 79, 77, 32, 67, 79, 82, 69, 32, 51, 46, 48, 49, 32, 40, 49, 48, 55, 56, 56, 56, 41,
+            0, 0, 0, 0, 0, 0, 0, 0, 48, 48, 48, 56, 48, 48, 48, 48, 0, 0, 70, 87, 86, 69, 82, 61,
+            83, 80, 71, 32, 51, 46, 48, 49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 80, 82,
+            79, 84, 86, 69, 82, 61, 49, 56, 46, 48, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 71, 80, 83, 59, 71, 76, 79, 59, 71, 65, 76, 59, 66, 68, 83, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 83, 66, 65, 83, 59, 73, 77, 69, 83, 59, 81, 90, 83, 83, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        assert_eq!(Ok(()), <MonVerRef>::validate(&payload));
+        let ver = MonVerRef(&payload);
+        assert_eq!("ROM CORE 3.01 (107888)", ver.software_version());
+        assert_eq!("00080000", ver.hardware_version());
+        let mut it = ver.extension();
+        assert_eq!("FWVER=SPG 3.01", it.next().unwrap());
+        assert_eq!("PROTVER=18.00", it.next().unwrap());
+        assert_eq!("GPS;GLO;GAL;BDS", it.next().unwrap());
+        assert_eq!("SBAS;IMES;QZSS", it.next().unwrap());
+        assert_eq!(None, it.next());
+    }
+
+    #[test]
+    fn mon_ver_flash_m8l_interpret() {
+        let payload: [u8; 250] = [
+            69, 88, 84, 32, 67, 79, 82, 69, 32, 51, 46, 48, 49, 32, 40, 100, 49, 56, 57, 102, 102,
+            41, 0, 0, 0, 0, 0, 0, 0, 0, 48, 48, 48, 56, 48, 48, 48, 48, 0, 0, 82, 79, 77, 32, 66,
+            65, 83, 69, 32, 51, 46, 48, 49, 32, 40, 49, 48, 55, 56, 56, 56, 41, 0, 0, 0, 0, 0, 0,
+            0, 0, 70, 87, 86, 69, 82, 61, 65, 68, 82, 32, 52, 46, 49, 49, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 80, 82, 79, 84, 86, 69, 82, 61, 49, 57, 46, 49, 48, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 77, 79, 68, 61, 78, 69, 79, 45, 77, 56, 76, 45,
+            48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 70, 73, 83, 61, 48, 120, 69, 70,
+            52, 48, 49, 53, 32, 40, 49, 48, 48, 49, 49, 49, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 71, 80,
+            83, 59, 71, 76, 79, 59, 71, 65, 76, 59, 66, 68, 83, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 83, 66, 65, 83, 59, 73, 77, 69, 83, 59, 81, 90, 83, 83, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        assert_eq!(Ok(()), <MonVerRef>::validate(&payload));
+        let ver = MonVerRef(&payload);
+        assert_eq!("EXT CORE 3.01 (d189ff)", ver.software_version());
+        assert_eq!("00080000", ver.hardware_version());
+        let mut it = ver.extension();
+        assert_eq!("ROM BASE 3.01 (107888)", it.next().unwrap());
+        assert_eq!("FWVER=ADR 4.11", it.next().unwrap());
+        assert_eq!("PROTVER=19.10", it.next().unwrap());
+        assert_eq!("MOD=NEO-M8L-0", it.next().unwrap());
+        assert_eq!("FIS=0xEF4015 (100111)", it.next().unwrap());
+        assert_eq!("GPS;GLO;GAL;BDS", it.next().unwrap());
+        assert_eq!("SBAS;IMES;QZSS", it.next().unwrap());
+        assert_eq!(None, it.next());
+    }
+}

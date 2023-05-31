@@ -26,6 +26,6 @@ jobs:
         with:
           components: rustfmt, clippy
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --all-features --verbose
       - name: Test
-        run: cargo test -- --nocapture
+        run: cargo test --all-features -- --nocapture
