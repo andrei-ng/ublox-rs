@@ -48,7 +48,9 @@ fn main() {
         )
         .get_matches();
 
-    let port = matches.get_one::<String>("port").unwrap();
+    let port = matches
+        .get_one::<String>("port")
+        .expect("Expected required 'port' cli argumnet");
     let baud = matches.get_one::<u32>("baud").cloned().unwrap_or(9600);
     let stop_bits = match matches.get_one::<String>("stop-bits").map(|s| s.as_str()) {
         Some("2") => SerialStopBits::Two,
@@ -92,22 +94,26 @@ fn main() {
             }
             .into_packet_bytes(),
         )
-        .unwrap();
-    device.wait_for_ack::<CfgPrtUart>().unwrap();
+        .expect("Could not configure UBX-CFG-PRT-UART");
+    device
+        .wait_for_ack::<CfgPrtUart>()
+        .expect("Could not acknowledge UBX-CFG-PRT-UART msg");
 
     // Enable the NavPvt packet
-    println!("Configure rate for UBX-NAV-PVT message  ...");
+    println!("Enable UBX-NAV-PVT message on selected ports ...");
     device
         .write_all(
             &CfgMsgAllPortsBuilder::set_rate_for::<NavPvt>([0, 1, 0, 0, 0, 0]).into_packet_bytes(),
         )
-        .unwrap();
-    device.wait_for_ack::<CfgMsgAllPorts>().unwrap();
+        .expect("Could not configure ports for UBX-NAV-PVT");
+    device
+        .wait_for_ack::<CfgMsgAllPorts>()
+        .expect("Could not acknowledge UBX-CFG-PRT-UART msg");
 
     // Send a packet request for the MonVer packet
     device
         .write_all(&UbxPacketRequest::request_for::<MonVer>().into_packet_bytes())
-        .unwrap();
+        .expect("Unable to write request/poll for UBX-MON-VER message");
 
     // Start reading data
     println!("Opened uBlox device, waiting for messages...");
@@ -116,11 +122,11 @@ fn main() {
             .update(|packet| match packet {
                 PacketRef::MonVer(packet) => {
                     println!(
-                        "SW version: {} HW version: {}",
+                        "SW version: {} HW version: {}; Extensions: {:?}",
                         packet.software_version(),
-                        packet.hardware_version()
+                        packet.hardware_version(),
+                        packet.extension().collect::<Vec<&str>>()
                     );
-                    println!("{:?}", packet);
                 }
                 PacketRef::NavPvt(sol) => {
                     let has_time = sol.fix_type() == GpsFix::Fix3D
@@ -144,7 +150,9 @@ fn main() {
                     }
 
                     if has_time {
-                        let time: DateTime<Utc> = (&sol).try_into().unwrap();
+                        let time: DateTime<Utc> = (&sol)
+                            .try_into()
+                            .expect("Could not parse NAV-PVT time field to UTC");
                         println!("Time: {:?}", time);
                     }
                 }
@@ -152,7 +160,7 @@ fn main() {
                     println!("{:?}", packet);
                 }
             })
-            .unwrap();
+            .expect("Failed to consume buffer");
     }
 }
 
@@ -173,7 +181,8 @@ impl Device {
 
     pub fn update<T: FnMut(PacketRef)>(&mut self, mut cb: T) -> std::io::Result<()> {
         loop {
-            let mut local_buf = [0; 100];
+            const MAX_PAYLOAD_LEN: usize = 1240;
+            let mut local_buf = [0; MAX_PAYLOAD_LEN];
             let nbytes = self.read_port(&mut local_buf)?;
             if nbytes == 0 {
                 break;
