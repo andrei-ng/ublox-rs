@@ -4,6 +4,7 @@ description = "Utility macros for the ublox crate"
 edition = "2018"
 license = "MIT"
 name = "ublox_derive"
+publish = false
 version = "0.0.4"
 
 [lib]

@@ -4,6 +4,7 @@ description = "A crate to communicate with u-blox GPS devices using the UBX prot
 edition = "2018"
 license = "MIT"
 name = "ublox"
+publish = false
 readme = "../README.md"
 repository = "https://github.com/lkolbly/ublox"
 version = "0.4.2"
