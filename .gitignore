@@ -1,5 +1,9 @@
+# IDEs
+.idea/
+.vscode
+
+# Rust specific
 /target
 **/*.rs.bk
 *~
 Cargo.lock
-.idea/

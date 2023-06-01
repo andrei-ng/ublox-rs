@@ -1,9 +1,11 @@
 pub mod cfg_val;
-mod packets;
+mod packets_recv;
+mod packets_send;
 mod types;
 
 use crate::error::MemWriterError;
-pub use packets::*;
+pub use packets_recv::*;
+pub use packets_send::*;
 pub use types::*;
 
 /// Information about concrete UBX protocol's packet

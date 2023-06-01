@@ -563,7 +563,7 @@ pub fn generate_code_to_extend_enum(ubx_enum: &UbxExtendEnum) -> TokenStream {
         None => quote! {},
         Some(UbxTypeIntoFn::Raw) => quote! {
             impl #name {
-                const fn into_raw(self) -> #repr_ty {
+                pub const fn into_raw(self) -> #repr_ty {
                     self as #repr_ty
                 }
             }
@@ -668,7 +668,7 @@ pub fn generate_code_to_extend_bitflags(bitflags: BitFlagsMacro) -> syn::Result<
         None => quote! {},
         Some(UbxTypeIntoFn::Raw) => quote! {
             impl #name {
-                const fn into_raw(self) -> #repr_ty {
+                pub const fn into_raw(self) -> #repr_ty {
                     self.bits()
                 }
             }
