@@ -3175,6 +3175,22 @@ impl<'a> core::iter::Iterator for EsfMeasDataIter<'a> {
     }
 }
 
+// UBX-ESF-MEAS message for Vehicle Speed
+#[ubx_packet_recv_send]
+#[ubx(
+    class = 0x10,
+    id = 0x02,
+    fixed_payload_len = 12,
+    flags = "default_for_builder"
+)]
+#[derive(Debug, Clone)]
+struct EsfMeasSpeed {
+    time_tag: u32,
+    flags: u16,
+    id: u16,
+    data: [u8; 4],
+}
+
 #[ubx_packet_recv]
 #[ubx(class = 0x10, id = 0x03, max_payload_len = 1240)]
 struct EsfRaw {
@@ -3227,7 +3243,7 @@ impl<'a> core::iter::Iterator for EsfRawDataIter<'a> {
 #[ubx_packet_recv]
 #[ubx(class = 0x10, id = 0x15, fixed_payload_len = 36)]
 struct EsfIns {
-    // #[ubx(map_type = EsfInsBitFlags)]
+    #[ubx(map_type = EsfInsBitFlags)]
     bit_field: u32,
     reserved: [u8; 4],
     i_tow: u32,
@@ -3256,6 +3272,68 @@ struct EsfIns {
 bitflags! {
     #[derive(Debug)]
     pub struct EsfInsBitFlags: u32 {
+        const VERSION = 1;
+        const X_ANG_RATE_VALID = 0x100;
+        const Y_ANG_RATE_VALID = 0x200;
+        const Z_ANG_RATE_VALID = 0x400;
+        const X_ACCEL_VALID = 0x800;
+        const Y_ACCEL_VALID = 0x1000;
+        const Z_ACCEL_VALID = 0x2000;
+    }
+}
+
+#[ubx_packet_recv]
+#[ubx(class = 0x28, id = 0x01, fixed_payload_len = 32)]
+struct HnrAtt {
+    itow: u32,
+    version: u8,
+    reserved1: [u8; 3],
+    #[ubx(map_type = f64, scale = 1e-5, alias = vehicle_roll)]
+    roll: i32,
+    #[ubx(map_type = f64, scale = 1e-5, alias = vehicle_pitch)]
+    pitch: i32,
+    #[ubx(map_type = f64, scale = 1e-5, alias = vehicle_heading)]
+    heading: i32,
+    #[ubx(map_type = f64, scale = 1e-5, alias = vehicle_roll_accuracy)]
+    acc_roll: u32,
+    #[ubx(map_type = f64, scale = 1e-5, alias = vehicle_pitch_accuracy)]
+    acc_pitch: u32,
+    #[ubx(map_type = f64, scale = 1e-5, alias = vehicle_heading_accuracy)]
+    acc_heading: u32,
+}
+
+#[ubx_packet_recv]
+#[ubx(class = 0x28, id = 0x02, fixed_payload_len = 36)]
+pub struct HnrIns {
+    #[ubx(map_type = HnrInsBitFlags)]
+    bit_field: u32,
+    reserved: [u8; 4],
+    i_tow: u32,
+
+    #[ubx(map_type = f64, scale = 1e-3, alias = x_angular_rate)]
+    x_ang_rate: i32,
+
+    #[ubx(map_type = f64, scale = 1e-3, alias = y_angular_rate)]
+    y_ang_rate: i32,
+
+    #[ubx(map_type = f64, scale = 1e-3, alias = z_angular_rate)]
+    z_ang_rate: i32,
+
+    #[ubx(map_type = f64, scale = 1e-2, alias = x_acceleration)]
+    x_accel: i32,
+
+    #[ubx(map_type = f64, scale = 1e-2, alias = y_acceleration)]
+    y_accel: i32,
+
+    #[ubx(map_type = f64, scale = 1e-2, alias = z_acceleration)]
+    z_accel: i32,
+}
+
+#[ubx_extend_bitflags]
+#[ubx(from, rest_reserved)]
+bitflags! {
+    #[derive(Debug)]
+    pub struct HnrInsBitFlags: u32 {
         const VERSION = 1;
         const X_ANG_RATE_VALID = 0x100;
         const Y_ANG_RATE_VALID = 0x200;
@@ -3566,7 +3644,6 @@ define_recv_packets!(
         NavSat,
         NavEoe,
         NavOdo,
-        CfgOdo,
         MgaAck,
         MgaGpsIono,
         MgaGpsEph,
@@ -3574,15 +3651,6 @@ define_recv_packets!(
         AlpSrv,
         AckAck,
         AckNak,
-        CfgItfm,
-        CfgPrtI2c,
-        CfgPrtSpi,
-        CfgPrtUart,
-        CfgNav5,
-        CfgAnt,
-        CfgTmode2,
-        CfgTmode3,
-        CfgTp5,
         InfError,
         InfWarning,
         InfNotice,
@@ -3597,6 +3665,8 @@ define_recv_packets!(
         RxmRtcm,
         EsfMeas,
         EsfIns,
+        HnrAtt,
+        HnrIns,
         HnrPvt,
         NavAtt,
         NavClock,
@@ -3605,6 +3675,16 @@ define_recv_packets!(
         RxmSfrbx,
         EsfRaw,
         TimSvin,
+        CfgOdo,
+        CfgItfm,
+        CfgPrtI2c,
+        CfgPrtSpi,
+        CfgPrtUart,
+        CfgNav5,
+        CfgAnt,
+        CfgTmode2,
+        CfgTmode3,
+        CfgTp5,
     }
 );
 
