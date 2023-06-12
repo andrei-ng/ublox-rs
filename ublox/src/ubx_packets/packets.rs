@@ -801,7 +801,7 @@ struct CfgItfm {
     config2: u32,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CfgItfmConfig {
     /// enable interference detection
@@ -814,17 +814,6 @@ pub struct CfgItfmConfig {
     /// should be set to 0x16B156 default value
     /// for correct settings
     algorithm_bits: CfgItfmAlgoBits,
-}
-
-impl Default for CfgItfmConfig {
-    fn default() -> Self {
-        Self {
-            enable: false,
-            bb_threshold: CfgItfmBbThreshold::default(),
-            cw_threshold: CfgItfmCwThreshold::default(),
-            algorithm_bits: CfgItfmAlgoBits::default(),
-        }
-    }
 }
 
 impl CfgItfmConfig {
@@ -2323,20 +2312,16 @@ impl Default for CfgNav5DynModel {
 }
 
 /// Position Fixing Mode
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CfgNav5FixMode {
+    #[non_exhaustive]
     Only2D = 1,
     Only3D = 2,
+    #[default]
     Auto2D3D = 3,
-}
-
-impl Default for CfgNav5FixMode {
-    fn default() -> Self {
-        CfgNav5FixMode::Auto2D3D
-    }
 }
 
 /// UTC standard to be used
@@ -3034,7 +3019,7 @@ impl<'a> MonVerExtensionIter<'a> {
     }
 
     fn is_valid(payload: &[u8]) -> bool {
-        payload.len() % 30 == 0 && payload.chunks(30).all(|c| is_cstr_valid(c))
+        payload.len() % 30 == 0 && payload.chunks(30).all(is_cstr_valid)
     }
 }
 

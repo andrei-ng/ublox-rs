@@ -1,6 +1,6 @@
 [package]
 authors = ["Lane Kolbly <lane@rscheme.org>", "Andrei Gherghescu <gandrein@pm.me>"]
-edition = "2018"
+edition = "2021"
 name = "example-basic-ublox-cli"
 publish = false
 version = "0.1.0"

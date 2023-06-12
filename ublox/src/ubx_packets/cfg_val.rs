@@ -235,6 +235,16 @@ macro_rules! cfg_val {
         }
       }
 
+      pub const fn is_empty(&self) -> bool {
+        match self {
+          $(
+            Self::$cfg_item(_) => {
+              $cfg_item::SIZE == 0
+            }
+          )*
+        }
+      }
+
       #[track_caller]
       pub fn parse(buf: &[u8]) -> Self {
         let key_id = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
