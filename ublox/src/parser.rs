@@ -42,12 +42,7 @@ pub trait UnderlyingBuffer:
 
     /// Locates the given u8 value within the buffer, returning the index (if it is found).
     fn find(&self, value: u8) -> Option<usize> {
-        for i in 0..self.len() {
-            if self[i] == value {
-                return Some(i);
-            }
-        }
-        None
+        (0..self.len()).find(|&i| self[i] == value)
     }
 
     /// Returns whether the buffer is empty.
@@ -155,12 +150,7 @@ impl<'a> UnderlyingBuffer for FixedLinearBuffer<'a> {
     }
 
     fn find(&self, value: u8) -> Option<usize> {
-        for i in 0..self.len {
-            if self.buffer[i] == value {
-                return Some(i);
-            }
-        }
-        None
+        (0..self.len()).find(|&i| self.buffer[i] == value)
     }
 }
 
@@ -428,12 +418,7 @@ pub struct ParserIter<'a, T: UnderlyingBuffer> {
 
 impl<'a, T: UnderlyingBuffer> ParserIter<'a, T> {
     fn find_sync(&self) -> Option<usize> {
-        for i in 0..self.buf.len() {
-            if self.buf[i] == SYNC_CHAR_1 {
-                return Some(i);
-            }
-        }
-        None
+        (0..self.buf.len()).find(|&i| self.buf[i] == SYNC_CHAR_1)
     }
 
     fn extract_packet(&mut self, pack_len: usize) -> Option<Result<PacketRef, ParserError>> {
