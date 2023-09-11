@@ -2,6 +2,9 @@ use crate::cfg_val::CfgVal;
 use core::convert::TryInto;
 use core::fmt;
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 use bitflags::bitflags;
 use chrono::prelude::*;
 use num_traits::cast::{FromPrimitive, ToPrimitive};
@@ -398,7 +401,7 @@ struct NavSolution {
 #[ubx_extend]
 #[ubx(from, rest_reserved)]
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum GpsFix {
     NoFix = 0,
     DeadReckoningOnly = 1,
@@ -499,7 +502,7 @@ impl NavSatSvFlags {
             2 => NavSatQualityIndicator::SignalAcquired,
             3 => NavSatQualityIndicator::SignalDetected,
             4 => NavSatQualityIndicator::CodeLock,
-            5 | 6 | 7 => NavSatQualityIndicator::CarrierLock,
+            5..=7 => NavSatQualityIndicator::CarrierLock,
             _ => {
                 panic!("Unexpected 3-bit bitfield value {}!", bits);
             },
@@ -771,22 +774,18 @@ bitflags! {
 }
 
 /// Odometer configuration profile
+#[derive(Default)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
 pub enum OdoProfile {
+    #[default]
     Running = 0,
     Cycling = 1,
     Swimming = 2,
     Car = 3,
     Custom = 4,
-}
-
-impl Default for OdoProfile {
-    fn default() -> Self {
-        Self::Running
-    }
 }
 
 /// Configure Jamming interference monitoring
@@ -801,7 +800,7 @@ struct CfgItfm {
     config2: u32,
 }
 
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CfgItfmConfig {
     /// enable interference detection
@@ -993,6 +992,7 @@ impl From<u32> for CfgItfmGeneralBits {
 
 /// ITFM Antenna settings helps the interference
 /// monitoring module
+#[derive(Default)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
@@ -1000,6 +1000,7 @@ impl From<u32> for CfgItfmGeneralBits {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub enum CfgItfmAntennaSettings {
     /// Type of Antenna is not known
+    #[default]
     Unknown = 0,
     /// Active antenna
     Active = 1,
@@ -1015,12 +1016,6 @@ impl From<u32> for CfgItfmAntennaSettings {
             2 => CfgItfmAntennaSettings::Passive,
             _ => CfgItfmAntennaSettings::Unknown,
         }
-    }
-}
-
-impl Default for CfgItfmAntennaSettings {
-    fn default() -> Self {
-        Self::Unknown
     }
 }
 
@@ -1343,19 +1338,15 @@ struct CfgTp5 {
 }
 
 /// Time pulse selection, used in CfgTp5 frame
+#[derive(Default)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
 pub enum CfgTp5TimePulseMode {
+    #[default]
     TimePulse = 0,
     TimePulse2 = 1,
-}
-
-impl Default for CfgTp5TimePulseMode {
-    fn default() -> Self {
-        Self::TimePulse
-    }
 }
 
 /// Time MODE2 Config Frame (32.10.36.1)
@@ -1397,22 +1388,18 @@ struct CfgTmode2 {
 }
 
 /// Time transfer modes (32.10.36)
+#[derive(Default)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CfgTmode2TimeXferModes {
+    #[default]
     Disabled = 0,
     SurveyIn = 1,
     /// True position information required
     /// when using `fixed mode`
     FixedMode = 2,
-}
-
-impl Default for CfgTmode2TimeXferModes {
-    fn default() -> Self {
-        Self::Disabled
-    }
 }
 
 #[ubx_extend_bitflags]
@@ -1802,18 +1789,14 @@ struct CfgPrtI2c {
 }
 
 /// Port Identifier Number (= 0 for I2C ports)
+#[derive(Default)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
 pub enum I2cPortId {
+    #[default]
     I2c = 0,
-}
-
-impl Default for I2cPortId {
-    fn default() -> Self {
-        Self::I2c
-    }
 }
 
 /// Port Configuration for UART
@@ -2042,18 +2025,14 @@ bitflags! {
 }
 
 /// Port Identifier Number (= 4 for SPI port)
+#[derive(Default)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
 pub enum SpiPortId {
+    #[default]
     Spi = 4,
-}
-
-impl Default for SpiPortId {
-    fn default() -> Self {
-        Self::Spi
-    }
 }
 
 /// UTC Time Solution
@@ -2286,6 +2265,7 @@ bitflags! {
 }
 
 /// Dynamic platform model
+#[derive(Default)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
@@ -2298,6 +2278,7 @@ pub enum CfgNav5DynModel {
     Sea = 5,
     AirborneWithLess1gAcceleration = 6,
     AirborneWithLess2gAcceleration = 7,
+    #[default]
     AirborneWith4gAcceleration = 8,
     /// not supported in protocol versions less than 18
     WristWornWatch = 9,
@@ -2305,19 +2286,13 @@ pub enum CfgNav5DynModel {
     Bike = 10,
 }
 
-impl Default for CfgNav5DynModel {
-    fn default() -> Self {
-        Self::AirborneWith4gAcceleration
-    }
-}
-
 /// Position Fixing Mode
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+#[derive(Default)] // default needs to be derived before ubx_extend
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CfgNav5FixMode {
-    #[non_exhaustive]
     Only2D = 1,
     Only3D = 2,
     #[default]
@@ -2325,12 +2300,14 @@ pub enum CfgNav5FixMode {
 }
 
 /// UTC standard to be used
+#[derive(Default)]
 #[ubx_extend]
 #[ubx(from_unchecked, into_raw, rest_error)]
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CfgNav5UtcStandard {
     /// receiver selects based on GNSS configuration (see GNSS timebases)
+    #[default]
     Automatic = 0,
     /// UTC as operated by the U.S. NavalObservatory (USNO);
     /// derived from GPStime
@@ -2340,12 +2317,6 @@ pub enum CfgNav5UtcStandard {
     /// UTC as operated by the National TimeService Center, China;
     /// derived from BeiDou time
     UtcChina = 7,
-}
-
-impl Default for CfgNav5UtcStandard {
-    fn default() -> Self {
-        Self::Automatic
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -2730,7 +2701,7 @@ impl TimTpFlags {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimTpTimeBase {
     Gnss,
     Utc,
@@ -2769,7 +2740,7 @@ impl TimTpRefInfo {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TimTpRefInfoTimeRefGnss {
     Gps,
     Glo,
@@ -2778,7 +2749,7 @@ pub enum TimTpRefInfoTimeRefGnss {
     NavIc,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TimTpRefInfoUtcStandard {
     Crl,
     Nist,
@@ -3623,6 +3594,15 @@ impl<'a> core::iter::Iterator for RxmRawxInfoIter<'a> {
     }
 }
 
+/// This message is used to retrieve a unique chip identifier
+#[ubx_packet_recv]
+#[ubx(class = 0x27, id = 0x03, fixed_payload_len = 9)]
+struct SecUniqId {
+    version: u8,
+    reserved1: [u8; 3],
+    unique_id: [u8; 5],
+}
+
 define_recv_packets!(
     enum PacketRef {
         _ = UbxUnknownPacketRef,
@@ -3638,6 +3618,7 @@ define_recv_packets!(
         NavSat,
         NavEoe,
         NavOdo,
+        CfgOdo,
         MgaAck,
         MgaGpsIono,
         MgaGpsEph,
@@ -3645,6 +3626,15 @@ define_recv_packets!(
         AlpSrv,
         AckAck,
         AckNak,
+        CfgItfm,
+        CfgPrtI2c,
+        CfgPrtSpi,
+        CfgPrtUart,
+        CfgNav5,
+        CfgAnt,
+        CfgTmode2,
+        CfgTmode3,
+        CfgTp5,
         InfError,
         InfWarning,
         InfNotice,
@@ -3669,16 +3659,7 @@ define_recv_packets!(
         RxmSfrbx,
         EsfRaw,
         TimSvin,
-        CfgOdo,
-        CfgItfm,
-        CfgPrtI2c,
-        CfgPrtSpi,
-        CfgPrtUart,
-        CfgNav5,
-        CfgAnt,
-        CfgTmode2,
-        CfgTmode3,
-        CfgTp5,
+        SecUniqId,
     }
 );
 

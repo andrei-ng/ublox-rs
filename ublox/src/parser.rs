@@ -150,7 +150,7 @@ impl<'a> UnderlyingBuffer for FixedLinearBuffer<'a> {
     }
 
     fn find(&self, value: u8) -> Option<usize> {
-        (0..self.len()).find(|&i| self.buffer[i] == value)
+        (0..self.len()).find(|&i| self[i] == value)
     }
 }
 
@@ -622,12 +622,9 @@ mod test {
 
         let mut dual = DualBuffer::new(&mut buf, &new[..]);
         // This should throw
-        match dual.take(6) {
-            Err(ParserError::OutOfMemory { required_size }) => {
-                assert_eq!(required_size, 6);
-            },
-            _ => assert!(false),
-        }
+        assert!(
+            matches!(dual.take(6), Err(ParserError::OutOfMemory { required_size }) if required_size == 6)
+        );
     }
 
     #[test]
@@ -766,12 +763,7 @@ mod test {
 
         let mut it = parser.consume(&bytes);
         for _ in 0..5 {
-            match it.next() {
-                Some(Ok(PacketRef::AckAck(_packet))) => {
-                    // We're good
-                },
-                _ => assert!(false),
-            }
+            assert!(matches!(it.next(), Some(Ok(PacketRef::AckAck(_)))));
         }
         assert!(it.next().is_none());
     }
@@ -786,12 +778,7 @@ mod test {
 
         {
             let mut it = parser.consume(&bytes);
-            match it.next() {
-                Some(Ok(PacketRef::AckAck(_packet))) => {
-                    // We're good
-                },
-                _ => assert!(false),
-            }
+            assert!(matches!(it.next(), Some(Ok(PacketRef::AckAck(_)))));
             assert!(it.next().is_none());
         }
     }
@@ -830,14 +817,9 @@ mod test {
 
         {
             let mut it = parser.consume(&bytes[8..]);
-            match it.next() {
-                Some(Err(ParserError::OutOfMemory { required_size })) => {
-                    assert_eq!(required_size, bytes.len() - 6);
-                },
-                _ => {
-                    assert!(false);
-                },
-            }
+            assert!(
+                matches!(it.next(), Some(Err(ParserError::OutOfMemory { required_size })) if required_size == bytes.len() - 6)
+            );
             assert!(it.next().is_none());
         }
 
@@ -846,12 +828,7 @@ mod test {
 
         {
             let mut it = parser.consume(&bytes);
-            match it.next() {
-                Some(Ok(PacketRef::AckAck(_packet))) => {
-                    // We're good
-                },
-                _ => assert!(false),
-            }
+            assert!(matches!(it.next(), Some(Ok(PacketRef::AckAck(_)))));
             assert!(it.next().is_none());
         }
     }
@@ -883,14 +860,7 @@ mod test {
         let buffer = FixedLinearBuffer::new(&mut buffer);
         let mut parser = Parser::new(buffer);
         let mut it = parser.consume(&bytes);
-        match it.next() {
-            Some(Ok(PacketRef::CfgNav5(_packet))) => {
-                // We're good
-            },
-            _ => {
-                assert!(false);
-            },
-        }
+        assert!(matches!(it.next(), Some(Ok(PacketRef::CfgNav5(_)))));
         assert!(it.next().is_none());
     }
 
@@ -920,14 +890,7 @@ mod test {
 
         let mut parser = Parser::default();
         let mut it = parser.consume(&bytes);
-        match it.next() {
-            Some(Ok(PacketRef::CfgNav5(_packet))) => {
-                // We're good
-            },
-            _ => {
-                assert!(false);
-            },
-        }
+        assert!(matches!(it.next(), Some(Ok(PacketRef::CfgNav5(_)))));
         assert!(it.next().is_none());
     }
 
@@ -958,7 +921,7 @@ mod test {
                 assert_eq!(packet.pacc(), 21);
             },
             _ => {
-                assert!(false);
+                panic!()
             },
         }
         match it.next() {
@@ -967,13 +930,14 @@ mod test {
                 assert_eq!(packet.pacc(), 18);
             },
             _ => {
-                assert!(false);
+                panic!()
             },
         }
         assert!(it.next().is_none());
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn test_max_payload_len() {
         assert!(MAX_PAYLOAD_LEN >= 1240);
     }
