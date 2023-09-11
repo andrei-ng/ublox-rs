@@ -19,24 +19,20 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Install libudev
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev
       - run: cargo clippy -- -D warnings
 
   rustfmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Install libudev
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev
       - run: cargo fmt --all -- --check
 
   build:
@@ -48,9 +44,7 @@ jobs:
           - --no-default-features --features alloc
           - --no-default-features
     steps:
-      - uses: actions/checkout@v3
-      - name: Install libudev
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      - uses: actions/checkout@v4
       - name: Setup toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -59,3 +53,20 @@ jobs:
         run: cargo build ${{ matrix.feature-args }} --verbose
       - name: Test
         run: cargo test ${{ matrix.feature-args }} -- --nocapture
+
+  build_examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install libudev
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      - name: Setup toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Build
+        run: cd ${{ github.workspace }}/examples && cargo build
+      - name: Coding style
+        run: |
+          cd ${{ github.workspace }}/examples && cargo fmt --all -- --check
+          cd ${{ github.workspace }}/examples && cargo clippy --all-features --all-targets -- -D warnings
