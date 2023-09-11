@@ -127,7 +127,7 @@ fn main() {
                         packet.hardware_version(),
                         packet.extension().collect::<Vec<&str>>()
                     );
-                }
+                },
                 PacketRef::NavPvt(sol) => {
                     let has_time = sol.fix_type() == GpsFix::Fix3D
                         || sol.fix_type() == GpsFix::GPSPlusDeadReckoning
@@ -155,10 +155,10 @@ fn main() {
                             .expect("Could not parse NAV-PVT time field to UTC");
                         println!("Time: {:?}", time);
                     }
-                }
+                },
                 _ => {
                     println!("{:?}", packet);
-                }
+                },
             })
             .expect("Failed to consume buffer");
     }
@@ -195,14 +195,14 @@ impl Device {
                 match it.next() {
                     Some(Ok(packet)) => {
                         cb(packet);
-                    }
+                    },
                     Some(Err(_)) => {
                         // Received a malformed packet, ignore it
-                    }
+                    },
                     None => {
                         // We've eaten all the packets we have
                         break;
-                    }
+                    },
                 }
             }
         }
@@ -233,7 +233,7 @@ impl Device {
                 } else {
                     Err(e)
                 }
-            }
+            },
         }
     }
 }
