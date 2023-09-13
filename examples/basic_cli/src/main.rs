@@ -51,7 +51,7 @@ fn main() {
     let port = matches
         .get_one::<String>("port")
         .expect("Expected required 'port' cli argumnet");
-    let baud = matches.get_one::<u32>("baud").cloned().unwrap_or(9600);
+    let baud = matches.get_one::<u32>("baud").cloned().unwrap_or(115200);
     let stop_bits = match matches.get_one::<String>("stop-bits").map(|s| s.as_str()) {
         Some("2") => SerialStopBits::Two,
         _ => SerialStopBits::One,
@@ -99,15 +99,54 @@ fn main() {
         .wait_for_ack::<CfgPrtUart>()
         .expect("Could not acknowledge UBX-CFG-PRT-UART msg");
 
-    // Enable the NavPvt packet on UART1 port
     device
         .write_all(
-            &CfgMsgAllPortsBuilder::set_rate_for::<NavPvt>([0, 1, 0, 0, 0, 0]).into_packet_bytes(),
+            &CfgMsgAllPortsBuilder::set_rate_for::<HnrAtt>([0, 0, 0, 0, 0, 0]).into_packet_bytes(),
+        )
+        .expect("Could not configure ports for UBX-HNR-ATT");
+
+    device
+        .write_all(
+            &CfgMsgAllPortsBuilder::set_rate_for::<HnrIns>([0, 0, 0, 0, 0, 0]).into_packet_bytes(),
+        )
+        .expect("Could not configure ports for UBX-HNR-INS");
+
+    device
+        .write_all(
+            &CfgMsgAllPortsBuilder::set_rate_for::<HnrPvt>([0, 0, 0, 0, 0, 0]).into_packet_bytes(),
+        )
+        .expect("Could not configure ports for UBX-HNR-PVT");
+
+    device
+        .write_all(
+            &CfgMsgAllPortsBuilder::set_rate_for::<EsfIns>([0, 1, 0, 1, 0, 0]).into_packet_bytes(),
+        )
+        .expect("Could not configure ports for UBX-ESF-INS");
+
+    device
+        .write_all(
+            &CfgMsgAllPortsBuilder::set_rate_for::<EsfAlg>([0, 1, 0, 1, 0, 0]).into_packet_bytes(),
+        )
+        .expect("Could not configure ports for UBX-ESF-INS");
+
+    device
+        .write_all(
+            &CfgMsgAllPortsBuilder::set_rate_for::<NavPvt>([0, 0, 0, 0, 0, 0]).into_packet_bytes(),
         )
         .expect("Could not configure ports for UBX-NAV-PVT");
+
     device
-        .wait_for_ack::<CfgMsgAllPorts>()
-        .expect("Could not acknowledge UBX-CFG-PRT-UART msg");
+        .write_all(
+            &CfgMsgAllPortsBuilder::set_rate_for::<EsfStatus>([0, 1, 0, 1, 0, 0])
+                .into_packet_bytes(),
+        )
+        .expect("Could not configure ports for UBX-ESF-STATUS");
+
+    device
+        .write_all(
+            &CfgMsgAllPortsBuilder::set_rate_for::<EsfMeas>([0, 1, 0, 1, 0, 0]).into_packet_bytes(),
+        )
+        .expect("Could not configure ports for UBX-ESF-MEAS");
 
     // Send a packet request for the MonVer packet
     device
@@ -127,34 +166,57 @@ fn main() {
                         packet.extension().collect::<Vec<&str>>()
                     );
                 },
-                PacketRef::NavPvt(sol) => {
-                    let has_time = sol.fix_type() == GpsFix::Fix3D
-                        || sol.fix_type() == GpsFix::GPSPlusDeadReckoning
-                        || sol.fix_type() == GpsFix::TimeOnlyFix;
-                    let has_posvel = sol.fix_type() == GpsFix::Fix3D
-                        || sol.fix_type() == GpsFix::GPSPlusDeadReckoning;
+                // PacketRef::NavPvt(sol) => {
+                //     let has_time = sol.fix_type() == GpsFix::Fix3D
+                //         || sol.fix_type() == GpsFix::GPSPlusDeadReckoning
+                //         || sol.fix_type() == GpsFix::TimeOnlyFix;
+                //     let has_posvel = sol.fix_type() == GpsFix::Fix3D
+                //         || sol.fix_type() == GpsFix::GPSPlusDeadReckoning;
 
-                    if has_posvel {
-                        let pos: Position = (&sol).into();
-                        let vel: Velocity = (&sol).into();
-                        println!(
-                            "Latitude: {:.5} Longitude: {:.5} Altitude: {:.2}m",
-                            pos.lat, pos.lon, pos.alt
-                        );
-                        println!(
-                            "Speed: {:.2} m/s Heading: {:.2} degrees",
-                            vel.speed, vel.heading
-                        );
-                        println!("Sol: {:?}", sol);
-                    }
+                //     if has_posvel {
+                //         let pos: Position = (&sol).into();
+                //         let vel: Velocity = (&sol).into();
+                //         println!(
+                //             "Latitude: {:.5} Longitude: {:.5} Altitude: {:.2}m",
+                //             pos.lat, pos.lon, pos.alt
+                //         );
+                //         println!(
+                //             "Speed: {:.2} m/s Heading: {:.2} degrees",
+                //             vel.speed, vel.heading
+                //         );
+                //         println!("Sol: {:?}", sol);
+                //     }
 
-                    if has_time {
-                        let time: DateTime<Utc> = (&sol)
-                            .try_into()
-                            .expect("Could not parse NAV-PVT time field to UTC");
-                        println!("Time: {:?}", time);
+                //     if has_time {
+                //         let time: DateTime<Utc> = (&sol)
+                //             .try_into()
+                //             .expect("Could not parse NAV-PVT time field to UTC");
+                //         println!("Time: {:?}", time);
+                //     }
+                // },
+                PacketRef::EsfStatus(status) => {
+                    println!(
+                        "EsfStatus: tow: {}, version: {}, {:?},{:?}, fusion_mode: {:?}, num_sens: {}",
+                        status.itow(),
+                        status.version(),
+                        status.init_status1(),
+                        status.init_status2(),
+                        status.fusion_mode(),
+                        status.num_sens(),
+                    );
+                    for s in status.data() {
+                        println!("{:?}", s);
                     }
                 },
+
+                PacketRef::EsfMeas(msg) => {
+                    println!("time_tag: {}", msg.time_tag());
+                    for s in msg.data() {
+                        println!("{:?}", s);
+                    }
+                    println!("calib_tag: {:?}", msg.calib_tag());
+                },
+
                 _ => {
                     println!("{:?}", packet);
                 },

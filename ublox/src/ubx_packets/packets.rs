@@ -3196,11 +3196,95 @@ impl<'a> core::iter::Iterator for EsfRawDataIter<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum EsfAlgStatus {
+    UserDefinedAngles = 0,
+    RollPitchAlignmentOngoing = 1,
+    RollPitchYawAlignmentOngoing = 2,
+    CoarseAlignment = 3,
+    FineAlignment = 4,
+}
+
+/// UBX-ESF-ALG flags
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct EsfAlgFlags(u8);
+
+impl EsfAlgFlags {
+    pub fn auto_imu_mount_alg_on(self) -> bool {
+        (self.0) & 0x1 != 0
+    }
+
+    pub fn status(self) -> EsfAlgStatus {
+        let bits = (self.0 >> 1) & 0x07;
+        match bits {
+            0 => EsfAlgStatus::UserDefinedAngles,
+            1 => EsfAlgStatus::RollPitchAlignmentOngoing,
+            2 => EsfAlgStatus::RollPitchYawAlignmentOngoing,
+            3 => EsfAlgStatus::CoarseAlignment,
+            4 => EsfAlgStatus::FineAlignment,
+            _ => {
+                panic!("Unexpected 3-bit bitfield value {}!", bits);
+            },
+        }
+    }
+}
+
+impl fmt::Debug for EsfAlgFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("flags")
+            .field("autoMntAlgOn", &self.auto_imu_mount_alg_on())
+            .field("status", &self.status())
+            .finish()
+    }
+}
+
+#[ubx_packet_recv]
+#[ubx(class = 0x10, id = 0x14, fixed_payload_len = 16)]
+struct EsfAlg {
+    itow: u32,
+    /// Message version: 0x01 for M8L
+    version: u8,
+
+    #[ubx(map_type = EsfAlgFlags, from = EsfAlgFlags)]
+    flags: u8,
+
+    #[ubx(map_type = EsfAlgError)]
+    error: u8,
+
+    reserved1: u8,
+
+    /// IMU mount yaw angle [0, 360]
+    #[ubx(map_type = f64, scale = 1e-2, alias = yaw)]
+    yaw: u32,
+
+    /// IMU mount pitch angle [-90, 90]
+    #[ubx(map_type = f64, scale = 1e-2, alias = pitch)]
+    pitch: i16,
+
+    /// IMU mount roll angle [-90, 90]
+    #[ubx(map_type = f64, scale = 1e-2, alias = roll)]
+    roll: i16,
+}
+
+#[ubx_extend_bitflags]
+#[ubx(from, rest_reserved)]
+bitflags! {
+    #[derive(Debug)]
+    pub struct EsfAlgError: u8 {
+        const TILT_ALG_ERROR = 0x01;
+        const YAW_ALG_ERROR = 0x02;
+        const ANGLE_ERROR = 0x04;
+    }
+}
+
 #[ubx_packet_recv]
 #[ubx(class = 0x10, id = 0x15, fixed_payload_len = 36)]
 struct EsfIns {
     #[ubx(map_type = EsfInsBitFlags)]
-    bit_field: u32,
+    bitfield: u32,
     reserved: [u8; 4],
     itow: u32,
 
@@ -3239,6 +3323,337 @@ bitflags! {
 }
 
 #[ubx_packet_recv]
+#[ubx(class = 0x10, id = 0x10, max_payload_len = 1240)]
+struct EsfStatus {
+    itow: u32,
+    /// Version is 2 for M8L spec
+    version: u8,
+
+    #[ubx(map_type = EsfInitStatus1, from = EsfInitStatus1)]
+    init_status1: u8,
+
+    #[ubx(map_type = EsfInitStatus2, from = EsfInitStatus2)]
+    init_status2: u8,
+
+    reserved1: [u8; 5],
+
+    #[ubx(map_type = EsfStatusFusionMode)]
+    fusion_mode: u8,
+    reserved2: [u8; 2],
+    num_sens: u8,
+
+    #[ubx(
+        map_type = EsfStatusDataIter,
+        from = EsfStatusDataIter::new,
+        is_valid = EsfStatusDataIter::is_valid,
+        may_fail,
+    )]
+    data: [u8; 0],
+}
+
+#[ubx_extend]
+#[ubx(from, rest_reserved)]
+#[repr(u8)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum EsfStatusFusionMode {
+    Initializing = 0,
+    Fusion = 1,
+    Suspended = 2,
+    Disabled = 3,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct EsfInitStatus1(u8);
+
+impl EsfInitStatus1 {
+    pub fn wheel_tick_init_status(self) -> EsfStatusWheelTickInitStatus {
+        let bits = (self.0) & 0x03;
+        match bits {
+            0 => EsfStatusWheelTickInitStatus::Off,
+            1 => EsfStatusWheelTickInitStatus::Initializing,
+            2 => EsfStatusWheelTickInitStatus::Initialized,
+            _ => {
+                panic!("Unexpected 2-bit bitfield value {}!", bits);
+            },
+        }
+    }
+
+    pub fn mounting_angle_status(self) -> EsfStatusMountAngleStatus {
+        let bits = (self.0 >> 2) & 0x07;
+        match bits {
+            0 => EsfStatusMountAngleStatus::Off,
+            1 => EsfStatusMountAngleStatus::Initializing,
+            2 => EsfStatusMountAngleStatus::Initialized,
+            3 => EsfStatusMountAngleStatus::Initialized2,
+            _ => {
+                panic!("Unexpected 3-bit bitfield value {}!", bits);
+            },
+        }
+    }
+
+    pub fn ins_initialization_status(self) -> EsfStatusInsInitStatus {
+        let bits = (self.0 >> 5) & 0x03;
+        match bits {
+            0 => EsfStatusInsInitStatus::Off,
+            1 => EsfStatusInsInitStatus::Initializing,
+            2 => EsfStatusInsInitStatus::Initialized,
+            _ => {
+                panic!("Unexpected 2-bit bitfield value {}!", bits);
+            },
+        }
+    }
+}
+
+impl fmt::Debug for EsfInitStatus1 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("initStatus1")
+            .field("wtInitStatus", &self.wheel_tick_init_status())
+            .field("mntAlgStatus", &self.mounting_angle_status())
+            .field("insInitStatus", &self.ins_initialization_status())
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum EsfStatusWheelTickInitStatus {
+    Off = 0,
+    Initializing = 1,
+    Initialized = 2,
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum EsfStatusMountAngleStatus {
+    Off = 0,
+    Initializing = 1,
+    Initialized = 2,
+    Initialized2 = 3,
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum EsfStatusInsInitStatus {
+    Off = 0,
+    Initializing = 1,
+    Initialized = 2,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct EsfInitStatus2(u8);
+
+impl EsfInitStatus2 {
+    pub fn imu_init_status(self) -> EsfImuInitStatus {
+        let bits = (self.0) & 0x02;
+        match bits {
+            0 => EsfImuInitStatus::Off,
+            1 => EsfImuInitStatus::Initializing,
+            2 => EsfImuInitStatus::Initialized,
+            _ => {
+                panic!("Unexpected 2-bit bitfield value {}!", bits);
+            },
+        }
+    }
+}
+
+impl fmt::Debug for EsfInitStatus2 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("initStatus2")
+            .field("imuInitStatus", &self.imu_init_status())
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum EsfImuInitStatus {
+    Off = 0,
+    Initializing = 1,
+    Initialized = 2,
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct EsfStatusData {
+    pub sens_status1: EsfStatusSensor1,
+    pub sens_status2: EsfStatusSensor2,
+    pub freq: u8,
+    pub faults: EsfStatusFaults,
+}
+
+#[derive(Clone, Debug)]
+pub struct EsfStatusDataIter<'a>(core::slice::ChunksExact<'a, u8>);
+
+impl<'a> EsfStatusDataIter<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self(bytes.chunks_exact(4))
+    }
+
+    fn is_valid(bytes: &'a [u8]) -> bool {
+        bytes.len() % 4 == 0
+    }
+}
+
+impl<'a> core::iter::Iterator for EsfStatusDataIter<'a> {
+    type Item = EsfStatusData;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let chunk = self.0.next()?;
+        let data = u32::from_le_bytes(chunk[0..4].try_into().unwrap());
+        Some(EsfStatusData {
+            sens_status1: ((data & 0xFF) as u8).try_into().unwrap(),
+            sens_status2: (((data >> 8) & 0xFF) as u8).try_into().unwrap(),
+            freq: ((data >> 16) & 0xFF).try_into().unwrap(),
+            faults: (((data >> 24) & 0xFF) as u8).try_into().unwrap(),
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct EsfStatusSensor1 {
+    pub type_sensor: EsfSensorType,
+    pub used: bool,
+    pub ready: bool,
+}
+
+impl From<u8> for EsfStatusSensor1 {
+    fn from(s: u8) -> Self {
+        let type_sensor: EsfSensorType = (s & 0x3F).into();
+        Self {
+            type_sensor,
+            used: (s >> 6) != 0,
+            ready: (s >> 7) != 0,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub enum EsfSensorType {
+    None = 0,
+    GyroZ = 5,
+    FrontLeftWheelTicks = 6,
+    FrontRightWheelTicks = 7,
+    RearLeftWheelTicks = 8,
+    RearRightWheelTicks = 9,
+    SpeedTick = 10,
+    Speed = 11,
+    GyroTemp = 12,
+    GyroY = 13,
+    GyroX = 14,
+    AccX = 16,
+    AccY = 17,
+    AccZ = 18,
+    Unknown = 1,
+}
+
+impl From<u8> for EsfSensorType {
+    fn from(orig: u8) -> Self {
+        match orig {
+            0 => return EsfSensorType::None,
+            1 | 2 | 3 | 4 => return EsfSensorType::Unknown,
+            5 => return EsfSensorType::GyroZ,
+            6 => return EsfSensorType::FrontLeftWheelTicks,
+            7 => return EsfSensorType::FrontRightWheelTicks,
+            8 => return EsfSensorType::RearLeftWheelTicks,
+            9 => return EsfSensorType::RearRightWheelTicks,
+            10 => return EsfSensorType::SpeedTick,
+            11 => return EsfSensorType::Speed,
+            12 => return EsfSensorType::GyroTemp,
+            13 => return EsfSensorType::GyroY,
+            14 => return EsfSensorType::GyroX,
+            16 => return EsfSensorType::AccX,
+            17 => return EsfSensorType::AccY,
+            18 => return EsfSensorType::AccZ,
+            _ => return EsfSensorType::Unknown,
+        };
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct EsfStatusSensor2 {
+    calibration_status: EsfStatusSensorCalibration,
+    time_status: EsfStatusSensorTime,
+}
+
+impl From<u8> for EsfStatusSensor2 {
+    fn from(s: u8) -> Self {
+        let calibration_status: EsfStatusSensorCalibration = (s & 0x03).into();
+        let time_status: EsfStatusSensorTime = ((s >> 2) & 0x03).into();
+        Self {
+            calibration_status,
+            time_status,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub enum EsfStatusSensorCalibration {
+    NotCalibrated = 0,
+    Calibrating = 1,
+    Calibrated = 2,
+}
+
+impl From<u8> for EsfStatusSensorCalibration {
+    fn from(orig: u8) -> Self {
+        match orig {
+            0 => return EsfStatusSensorCalibration::NotCalibrated,
+            1 => return EsfStatusSensorCalibration::Calibrating,
+            2 => return EsfStatusSensorCalibration::Calibrated,
+            _ => return EsfStatusSensorCalibration::Calibrated,
+        };
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub enum EsfStatusSensorTime {
+    NoData = 0,
+    OnReceptionFirstByte = 1,
+    OnEventInput = 2,
+    TimeTagFromData = 3,
+}
+
+impl From<u8> for EsfStatusSensorTime {
+    fn from(orig: u8) -> Self {
+        match orig {
+            0 => return EsfStatusSensorTime::NoData,
+            1 => return EsfStatusSensorTime::OnReceptionFirstByte,
+            2 => return EsfStatusSensorTime::OnEventInput,
+            3 => return EsfStatusSensorTime::TimeTagFromData,
+            _ => return EsfStatusSensorTime::NoData,
+        };
+    }
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct EsfStatusFaults {
+    pub bad_measurement: bool,
+    pub bad_timetag: bool,
+    pub missing_measurement: bool,
+    pub noisy_measurement: bool,
+}
+
+impl From<u8> for EsfStatusFaults {
+    fn from(s: u8) -> Self {
+        Self {
+            bad_measurement: (s & 0x01) != 0,
+            bad_timetag: ((s >> 1) & 0x01) != 0,
+            missing_measurement: ((s >> 2) & 0x01) != 0,
+            noisy_measurement: ((s >> 3) & 0x01) != 0,
+        }
+    }
+}
+
+#[ubx_packet_recv]
 #[ubx(class = 0x28, id = 0x01, fixed_payload_len = 32)]
 struct HnrAtt {
     itow: u32,
@@ -3262,7 +3677,7 @@ struct HnrAtt {
 #[ubx(class = 0x28, id = 0x02, fixed_payload_len = 36)]
 pub struct HnrIns {
     #[ubx(map_type = HnrInsBitFlags)]
-    bit_field: u32,
+    bitfield: u32,
     reserved: [u8; 4],
     itow: u32,
 
@@ -3647,8 +4062,10 @@ define_recv_packets!(
         MonGnss,
         MonHw,
         RxmRtcm,
-        EsfMeas,
+        EsfAlg,
         EsfIns,
+        EsfMeas,
+        EsfStatus,
         HnrAtt,
         HnrIns,
         HnrPvt,
