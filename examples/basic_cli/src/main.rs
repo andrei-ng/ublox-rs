@@ -99,8 +99,7 @@ fn main() {
         .wait_for_ack::<CfgPrtUart>()
         .expect("Could not acknowledge UBX-CFG-PRT-UART msg");
 
-    // Enable the NavPvt packet
-    println!("Enable UBX-NAV-PVT message on selected ports ...");
+    // Enable the NavPvt packet on UART1 port
     device
         .write_all(
             &CfgMsgAllPortsBuilder::set_rate_for::<NavPvt>([0, 1, 0, 0, 0, 0]).into_packet_bytes(),
@@ -160,7 +159,7 @@ fn main() {
                     println!("{:?}", packet);
                 },
             })
-            .expect("Failed to consume buffer");
+            .unwrap();
     }
 }
 
