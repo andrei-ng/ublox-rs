@@ -3061,6 +3061,7 @@ struct RxmRtcm {
 #[ubx(class = 0x10, id = 0x02, max_payload_len = 1240)]
 struct EsfMeas {
     time_tag: u32,
+    #[ubx(map_type = EsfMeasFlags, from = EsfMeasFlags)]
     flags: u16,
     id: u16,
     #[ubx(
@@ -3087,11 +3088,11 @@ impl EsfMeas {
 
 impl<'a> EsfMeasRef<'a> {
     fn data_len(&self) -> usize {
-        ((self.flags() >> 11 & 0x1f) as usize) * 4
+        self.flags().num_meas() as usize * 4
     }
 
     fn calib_tag_len(&self) -> usize {
-        if self.flags() & 0x8 != 0 {
+        if self.flags().calib_tag_valid() {
             4
         } else {
             0
@@ -3102,8 +3103,58 @@ impl<'a> EsfMeasRef<'a> {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct EsfMeasData {
-    pub data_type: u8,
-    pub data_field: u32,
+    pub data_type: EsfSensorType,
+    pub data_field: i32,
+}
+
+#[derive(Debug)]
+pub enum SensorData {
+    Tick(i32),
+    Value(f32),
+}
+
+impl EsfMeasData {
+    pub fn direction(&self) -> i8 {
+        if self.data_field.is_negative() {
+            -1
+        } else {
+            1
+        }
+    }
+
+    pub fn value(&self) -> SensorData {
+        match self.data_type {
+            EsfSensorType::FrontLeftWheelTicks
+            | EsfSensorType::FrontRightWheelTicks
+            | EsfSensorType::RearLeftWheelTicks
+            | EsfSensorType::RearRightWheelTicks
+            | EsfSensorType::SpeedTick => {
+                let tick = (self.data_field & 0x7FFFFF) * (self.direction() as i32);
+                SensorData::Tick(tick)
+            },
+            EsfSensorType::GyroX | EsfSensorType::GyroY | EsfSensorType::GyroZ => {
+                let value = (self.data_field & 0x7FFFFF) as f32
+                    * (self.direction() as f32)
+                    * 2_f32.powi(-12);
+                SensorData::Value(value)
+            },
+            EsfSensorType::AccX | EsfSensorType::AccY | EsfSensorType::AccZ => {
+                let value = (self.data_field & 0x7FFFFF) as f32
+                    * (self.direction() as f32)
+                    * 2_f32.powf(-10.0);
+                SensorData::Value(value)
+            },
+            EsfSensorType::GyroTemp => {
+                let value = (self.data_field & 0x7FFFFF) as f32 * (self.direction() as f32) * 1e-2;
+                SensorData::Value(value)
+            },
+            EsfSensorType::Speed => {
+                let value = (self.data_field & 0x7FFFFF) as f32 * (self.direction() as f32) * 1e-3;
+                SensorData::Value(value)
+            },
+            _ => SensorData::Value(0f32),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -3124,10 +3175,52 @@ impl<'a> core::iter::Iterator for EsfMeasDataIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let data = self.0.next()?.try_into().map(u32::from_le_bytes).unwrap();
+        let mut data_field = (data & 0x7FFFFF) as i32;
+        let signed = ((data >> 23) & 0x01) == 1;
+        if signed {
+            data_field ^= 0x800000;
+            data_field = data_field.wrapping_neg();
+        }
+
         Some(EsfMeasData {
-            data_type: ((data & 0x3F000000) >> 24).try_into().unwrap(),
-            data_field: data & 0xFFFFFF,
+            data_type: (((data & 0x3F000000) >> 24) as u8).try_into().unwrap(),
+            data_field,
         })
+    }
+}
+
+/// UBX-ESF-MEAS flags
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct EsfMeasFlags(u16);
+
+impl EsfMeasFlags {
+    pub fn time_mark_sent(self) -> u8 {
+        ((self.0) & 0x2) as u8
+    }
+
+    pub fn time_mark_edge(self) -> bool {
+        (self.0 >> 2) & 0x01 != 0
+    }
+
+    pub fn calib_tag_valid(self) -> bool {
+        (self.0 >> 3) & 0x01 != 0
+    }
+
+    pub fn num_meas(self) -> u8 {
+        ((self.0 >> 11) & 0x1F) as u8
+    }
+}
+
+impl fmt::Debug for EsfMeasFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("flags")
+            .field("timeMarkSent", &self.time_mark_sent())
+            .field("timeMarkEdge", &self.time_mark_edge())
+            .field("calibTagValid", &self.calib_tag_valid())
+            .field("numMeas", &self.num_meas())
+            .finish()
     }
 }
 
@@ -3206,6 +3299,34 @@ pub enum EsfAlgStatus {
     FineAlignment = 4,
 }
 
+#[ubx_packet_recv]
+#[ubx(class = 0x10, id = 0x14, fixed_payload_len = 16)]
+struct EsfAlg {
+    itow: u32,
+    /// Message version: 0x01 for M8L
+    version: u8,
+
+    #[ubx(map_type = EsfAlgFlags, from = EsfAlgFlags)]
+    flags: u8,
+
+    #[ubx(map_type = EsfAlgError)]
+    error: u8,
+
+    reserved1: u8,
+
+    /// IMU mount yaw angle [0, 360]
+    #[ubx(map_type = f64, scale = 1e-2, alias = yaw)]
+    yaw: u32,
+
+    /// IMU mount pitch angle [-90, 90]
+    #[ubx(map_type = f64, scale = 1e-2, alias = pitch)]
+    pitch: i16,
+
+    /// IMU mount roll angle [-90, 90]
+    #[ubx(map_type = f64, scale = 1e-2, alias = roll)]
+    roll: i16,
+}
+
 /// UBX-ESF-ALG flags
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -3239,34 +3360,6 @@ impl fmt::Debug for EsfAlgFlags {
             .field("status", &self.status())
             .finish()
     }
-}
-
-#[ubx_packet_recv]
-#[ubx(class = 0x10, id = 0x14, fixed_payload_len = 16)]
-struct EsfAlg {
-    itow: u32,
-    /// Message version: 0x01 for M8L
-    version: u8,
-
-    #[ubx(map_type = EsfAlgFlags, from = EsfAlgFlags)]
-    flags: u8,
-
-    #[ubx(map_type = EsfAlgError)]
-    error: u8,
-
-    reserved1: u8,
-
-    /// IMU mount yaw angle [0, 360]
-    #[ubx(map_type = f64, scale = 1e-2, alias = yaw)]
-    yaw: u32,
-
-    /// IMU mount pitch angle [-90, 90]
-    #[ubx(map_type = f64, scale = 1e-2, alias = pitch)]
-    pitch: i16,
-
-    /// IMU mount roll angle [-90, 90]
-    #[ubx(map_type = f64, scale = 1e-2, alias = roll)]
-    roll: i16,
 }
 
 #[ubx_extend_bitflags]
@@ -3380,13 +3473,13 @@ impl EsfInitStatus1 {
         }
     }
 
-    pub fn mounting_angle_status(self) -> EsfStatusMountAngleStatus {
+    pub fn mounting_angle_status(self) -> EsfStatusMountAngle {
         let bits = (self.0 >> 2) & 0x07;
         match bits {
-            0 => EsfStatusMountAngleStatus::Off,
-            1 => EsfStatusMountAngleStatus::Initializing,
-            2 => EsfStatusMountAngleStatus::Initialized,
-            3 => EsfStatusMountAngleStatus::Initialized2,
+            0 => EsfStatusMountAngle::Off,
+            1 => EsfStatusMountAngle::Initializing,
+            2 => EsfStatusMountAngle::Initialized,
+            3 => EsfStatusMountAngle::Initialized,
             _ => {
                 panic!("Unexpected 3-bit bitfield value {}!", bits);
             },
@@ -3426,11 +3519,10 @@ pub enum EsfStatusWheelTickInitStatus {
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum EsfStatusMountAngleStatus {
+pub enum EsfStatusMountAngle {
     Off = 0,
     Initializing = 1,
     Initialized = 2,
-    Initialized2 = 3,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -3516,16 +3608,16 @@ impl<'a> core::iter::Iterator for EsfStatusDataIter<'a> {
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct EsfStatusSensor1 {
-    pub type_sensor: EsfSensorType,
+    pub sensor_type: EsfSensorType,
     pub used: bool,
     pub ready: bool,
 }
 
 impl From<u8> for EsfStatusSensor1 {
     fn from(s: u8) -> Self {
-        let type_sensor: EsfSensorType = (s & 0x3F).into();
+        let sensor_type: EsfSensorType = (s & 0x3F).into();
         Self {
-            type_sensor,
+            sensor_type,
             used: (s >> 6) != 0,
             ready: (s >> 7) != 0,
         }
@@ -3549,29 +3641,29 @@ pub enum EsfSensorType {
     AccX = 16,
     AccY = 17,
     AccZ = 18,
-    Unknown = 1,
+    Unknown = 19,
 }
 
 impl From<u8> for EsfSensorType {
     fn from(orig: u8) -> Self {
         match orig {
-            0 => return EsfSensorType::None,
-            1 | 2 | 3 | 4 => return EsfSensorType::Unknown,
-            5 => return EsfSensorType::GyroZ,
-            6 => return EsfSensorType::FrontLeftWheelTicks,
-            7 => return EsfSensorType::FrontRightWheelTicks,
-            8 => return EsfSensorType::RearLeftWheelTicks,
-            9 => return EsfSensorType::RearRightWheelTicks,
-            10 => return EsfSensorType::SpeedTick,
-            11 => return EsfSensorType::Speed,
-            12 => return EsfSensorType::GyroTemp,
-            13 => return EsfSensorType::GyroY,
-            14 => return EsfSensorType::GyroX,
-            16 => return EsfSensorType::AccX,
-            17 => return EsfSensorType::AccY,
-            18 => return EsfSensorType::AccZ,
-            _ => return EsfSensorType::Unknown,
-        };
+            0 => EsfSensorType::None,
+            1 | 2 | 3 | 4 | 15 => EsfSensorType::Unknown,
+            5 => EsfSensorType::GyroZ,
+            6 => EsfSensorType::FrontLeftWheelTicks,
+            7 => EsfSensorType::FrontRightWheelTicks,
+            8 => EsfSensorType::RearLeftWheelTicks,
+            9 => EsfSensorType::RearRightWheelTicks,
+            10 => EsfSensorType::SpeedTick,
+            11 => EsfSensorType::Speed,
+            12 => EsfSensorType::GyroTemp,
+            13 => EsfSensorType::GyroY,
+            14 => EsfSensorType::GyroX,
+            16 => EsfSensorType::AccX,
+            17 => EsfSensorType::AccY,
+            18 => EsfSensorType::AccZ,
+            _ => EsfSensorType::Unknown,
+        }
     }
 }
 
@@ -3604,11 +3696,11 @@ pub enum EsfStatusSensorCalibration {
 impl From<u8> for EsfStatusSensorCalibration {
     fn from(orig: u8) -> Self {
         match orig {
-            0 => return EsfStatusSensorCalibration::NotCalibrated,
-            1 => return EsfStatusSensorCalibration::Calibrating,
-            2 => return EsfStatusSensorCalibration::Calibrated,
-            _ => return EsfStatusSensorCalibration::Calibrated,
-        };
+            0 => EsfStatusSensorCalibration::NotCalibrated,
+            1 => EsfStatusSensorCalibration::Calibrating,
+            2 => EsfStatusSensorCalibration::Calibrated,
+            _ => EsfStatusSensorCalibration::Calibrated,
+        }
     }
 }
 
@@ -3624,12 +3716,12 @@ pub enum EsfStatusSensorTime {
 impl From<u8> for EsfStatusSensorTime {
     fn from(orig: u8) -> Self {
         match orig {
-            0 => return EsfStatusSensorTime::NoData,
-            1 => return EsfStatusSensorTime::OnReceptionFirstByte,
-            2 => return EsfStatusSensorTime::OnEventInput,
-            3 => return EsfStatusSensorTime::TimeTagFromData,
-            _ => return EsfStatusSensorTime::NoData,
-        };
+            0 => EsfStatusSensorTime::NoData,
+            1 => EsfStatusSensorTime::OnReceptionFirstByte,
+            2 => EsfStatusSensorTime::OnEventInput,
+            3 => EsfStatusSensorTime::TimeTagFromData,
+            _ => EsfStatusSensorTime::NoData,
+        }
     }
 }
 
